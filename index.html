@@ -470,8 +470,16 @@ var REGLAGES = {
   })();
   var evAgenda = null;
 
+  // Message dans la carte Agenda (visible seulement sur l'appareil qui a la clé)
+  function messageAgenda(t) {
+    if (evAgenda) return erreur(t);   // on garde les derniers rendez-vous affichés
+    $("agenda").innerHTML = '<div class="ag-ligne ag-vide"><span class="ag-titre">' + echapper(t) + '</span></div>';
+    $("agenda").className = "carte agenda actif";
+  }
+
   function majAgenda() {
     if (!R.agenda || !cleAgenda) return;
+    if (!evAgenda) messageAgenda("Agenda : chargement…");
     var x = new XMLHttpRequest();
     x.open("GET", R.agenda + "?t=" + Math.floor(Date.now() / 60000));
     x.timeout = 20000;
@@ -480,13 +488,14 @@ var REGLAGES = {
       try {
         if (x.status !== 200) throw new Error();
         obj = JSON.parse(x.responseText);
-      } catch (e) { return erreur("agenda indisponible"); }
+      } catch (e) { return messageAgenda("Agenda : fichier illisible (" + x.status + ")"); }
       dechiffrer(obj, cleAgenda, function (clair) {
         evAgenda = clair.ev || [];
         dessinerAgenda();
-      }, function () { erreur("agenda : clé incorrecte"); });
+      }, function (raison) { messageAgenda("Agenda : " + raison); });
     };
-    x.onerror = x.ontimeout = function () { erreur("agenda indisponible"); };
+    x.onerror = function () { messageAgenda("Agenda : pas de connexion au fichier"); };
+    x.ontimeout = function () { messageAgenda("Agenda : délai dépassé"); };
     x.send();
   }
 
@@ -498,16 +507,21 @@ var REGLAGES = {
   }
   function dechiffrer(obj, cle, ok, ko) {
     var s = window.crypto && (window.crypto.subtle || window.crypto.webkitSubtle);
-    if (!s || !window.TextEncoder) return ko();
+    if (!s) return ko("déchiffrement non disponible (crypto)");
+    if (!window.TextEncoder || !window.TextDecoder) return ko("déchiffrement non disponible (texte)");
+    var etape = "empreinte";
     try {
       s.digest("SHA-256", new TextEncoder().encode(cle)).then(function (h) {
+        etape = "clé";
         return s.importKey("raw", h, { name: "AES-GCM" }, false, ["decrypt"]);
       }).then(function (k) {
+        etape = "déchiffrement";
         return s.decrypt({ name: "AES-GCM", iv: octets(obj.i) }, k, octets(obj.d));
       }).then(function (buf) {
+        etape = "lecture";
         ok(JSON.parse(new TextDecoder().decode(buf)));
-      }, function () { ko(); });
-    } catch (e) { ko(); }
+      }).then(null, function (e) { ko("erreur à l'étape " + etape + (e && e.name ? " (" + e.name + ")" : "")); });
+    } catch (e) { ko("erreur " + (e && e.message ? e.message : "")); }
   }
 
   function dessinerAgenda() {
