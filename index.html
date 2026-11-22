@@ -470,8 +470,16 @@ var REGLAGES = {
   })();
   var evAgenda = null;
 
+  // Message dans la carte Agenda (visible seulement sur l'appareil qui a la clé)
+  function messageAgenda(t) {
+    if (evAgenda) return erreur(t);   // on garde les derniers rendez-vous affichés
+    $("agenda").innerHTML = '<div class="ag-ligne ag-vide"><span class="ag-titre">' + echapper(t) + '</span></div>';
+    $("agenda").className = "carte agenda actif";
+  }
+
   function majAgenda() {
     if (!R.agenda || !cleAgenda) return;
+    if (!evAgenda) messageAgenda("Agenda : chargement…");
     var x = new XMLHttpRequest();
     x.open("GET", R.agenda + "?t=" + Math.floor(Date.now() / 60000));
     x.timeout = 20000;
@@ -480,13 +488,14 @@ var REGLAGES = {
       try {
         if (x.status !== 200) throw new Error();
         obj = JSON.parse(x.responseText);
-      } catch (e) { return erreur("agenda indisponible"); }
+      } catch (e) { return messageAgenda("Agenda : fichier illisible (" + x.status + ")"); }
       dechiffrer(obj, cleAgenda, function (clair) {
         evAgenda = clair.ev || [];
         dessinerAgenda();
-      }, function () { erreur("agenda : clé incorrecte"); });
+      }, function (raison) { messageAgenda("Agenda : " + raison); });
     };
-    x.onerror = x.ontimeout = function () { erreur("agenda indisponible"); };
+    x.onerror = function () { messageAgenda("Agenda : pas de connexion au fichier"); };
+    x.ontimeout = function () { messageAgenda("Agenda : délai dépassé"); };
     x.send();
   }
 
