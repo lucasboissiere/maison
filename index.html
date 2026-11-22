@@ -62,6 +62,18 @@
 
   /* ── Météo actuelle ── */
   .meteo { margin-top: auto; }
+
+  /* ── Agenda (sous la date ; visible seulement sur l'iPad qui a la clé) ── */
+  .agenda { display: none; margin: 22px 0 14px; padding: 12px 20px; }
+  .agenda.actif { display: block; }
+  .ag-ligne { display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline;
+    padding: 6px 0; font-size: 19px; min-width: 0; }
+  .ag-ligne + .ag-ligne { border-top: 1px solid rgba(255,255,255,.08); }
+  .ag-jour { width: 104px; -webkit-flex-shrink: 0; flex-shrink: 0; font-size: 15px; font-weight: 600; color: var(--doux); }
+  .ag-ligne.auj .ag-jour { color: var(--texte); }
+  .ag-heure { width: 70px; -webkit-flex-shrink: 0; flex-shrink: 0; font-size: 17px; color: var(--doux); font-feature-settings: "tnum"; }
+  .ag-titre { -webkit-flex: 1; flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ag-vide .ag-titre { color: var(--doux); font-weight: 400; }
   .meteo-haut { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
   .meteo-icone svg { width: 76px; height: 76px; stroke-width: 1.2; margin-right: 18px; display: block; }
   .meteo-temp { font-size: 76px; font-weight: 200; letter-spacing: -3px; line-height: 1; }
@@ -152,6 +164,7 @@
     <div class="salut" id="salut">&nbsp;</div>
     <div class="heure" id="heure">--<span class="sep">:</span>--</div>
     <div class="date" id="date">&nbsp;</div>
+    <div class="carte agenda" id="agenda"></div>
 
     <div class="carte meteo">
       <div class="titre-carte"><span id="ville">Météo</span><span id="maj"></span></div>
@@ -200,6 +213,9 @@ var REGLAGES = {
     { nom: "Poubelle noire", jour: "mardi", toutes_les: 2, depuis: "2026-11-24" },
     { nom: "Poubelle jaune", jour: "mardi", toutes_les: 2, depuis: "2026-12-01" }
   ],
+  // Agenda : adresse de l'intermédiaire Cloudflare. La clé n'est PAS ici : elle est donnée
+  // une seule fois à l'iPad dans l'adresse (…/maison/#cle=XXXX) et reste sur l'appareil.
+  agenda: "https://agenda-maison.pages.dev/",
   nuitDebut: 23,                   // mode nuit de 23 h…
   nuitFin: 6                       // …à 6 h
 };
@@ -444,10 +460,81 @@ var REGLAGES = {
     $("nuit-info").textContent = info;
   }
 
+  /* ── Agenda ── */
+  var cleAgenda = (function () {
+    var m = /cle=([A-Za-z0-9_-]+)/.exec(location.hash || "");
+    try {
+      if (m) localStorage.setItem("cleAgenda", m[1]);
+      return m ? m[1] : (localStorage.getItem("cleAgenda") || "");
+    } catch (e) { return m ? m[1] : ""; }
+  })();
+  var evAgenda = null;
+
+  function majAgenda() {
+    if (!R.agenda || !cleAgenda) return;
+    var x = new XMLHttpRequest();
+    x.open("GET", R.agenda + "?cle=" + encodeURIComponent(cleAgenda) + "&t=" + Date.now());
+    x.timeout = 20000;
+    x.onload = function () {
+      try {
+        if (x.status !== 200) throw new Error();
+        evAgenda = JSON.parse(x.responseText).ev || [];
+        dessinerAgenda();
+      } catch (e) { erreur("agenda indisponible"); }
+    };
+    x.onerror = x.ontimeout = function () { erreur("agenda indisponible"); };
+    x.send();
+  }
+
+  function dessinerAgenda() {
+    if (!evAgenda) return;
+    var MAX = 3;
+    var d = new Date(), auj = iso(d), maintenant = hm(d);
+    var dem = iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+    var liste = evAgenda.filter(function (e) {
+      if (e.d < auj) return false;
+      if (e.d === auj && !e.j && e.f && e.h && e.f <= maintenant && e.f !== e.h) return false; // déjà fini
+      return true;
+    });
+    function libJour(date) {
+      if (date === auj) return "Aujourd'hui";
+      if (date === dem) return "Demain";
+      var x = lireDate(date);
+      var loin = (x - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5 > 6;
+      var MOIS_C = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+      return JOURS_C[x.getDay()] + " " + x.getDate() + (loin ? " " + MOIS_C[x.getMonth()] : "");
+    }
+    var lignes = [], dernier = null;
+    if (!liste.length || liste[0].d !== auj) {
+      lignes.push('<div class="ag-ligne auj ag-vide"><span class="ag-jour">Aujourd\'hui</span><span class="ag-titre">Rien de prévu</span></div>');
+      dernier = auj;
+    }
+    for (var i = 0; i < liste.length && lignes.length < MAX; i++) {
+      var e = liste[i];
+      var reste = liste.length - i;
+      if (lignes.length === MAX - 1 && reste > 1 && e.d === auj && liste[i + 1].d === auj) {
+        lignes.push('<div class="ag-ligne auj ag-vide"><span class="ag-jour"></span><span class="ag-titre">+ ' + reste + ' autres aujourd\'hui</span></div>');
+        break;
+      }
+      lignes.push('<div class="ag-ligne' + (e.d === auj ? " auj" : "") + '">' +
+        '<span class="ag-jour">' + (e.d === dernier ? "" : libJour(e.d)) + '</span>' +
+        '<span class="ag-heure">' + (e.j ? "Journée" : (e.h || "En cours")) + '</span>' +
+        '<span class="ag-titre">' + echapper(e.t) + '</span></div>');
+      dernier = e.d;
+    }
+    if (lignes.length === 1 && liste.length === 0) {
+      lignes.push('<div class="ag-ligne ag-vide"><span class="ag-jour"></span><span class="ag-titre">Aucun rendez-vous à venir</span></div>');
+    }
+    $("agenda").innerHTML = lignes.join("");
+    $("agenda").className = "carte agenda actif";
+  }
+
   /* ── Démarrage ── */
   horloge();
   dessinerPoubelles();
   majMeteo(); setInterval(majMeteo, 10 * 60 * 1000);
+  majAgenda(); setInterval(majAgenda, 10 * 60 * 1000);
+  setInterval(dessinerAgenda, 60 * 1000);   // « Aujourd'hui » / « Demain » et rendez-vous finis
   // Recharge complète chaque nuit à 3 h (récupère aussi les mises à jour de la page)
   setInterval(function () { var d = new Date(); if (d.getHours() === 3 && d.getMinutes() === 0) location.reload(); }, 60000);
 })();
