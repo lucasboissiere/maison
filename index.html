@@ -213,9 +213,9 @@ var REGLAGES = {
     { nom: "Poubelle noire", jour: "mardi", toutes_les: 2, depuis: "2026-11-24" },
     { nom: "Poubelle jaune", jour: "mardi", toutes_les: 2, depuis: "2026-12-01" }
   ],
-  // Agenda : adresse de l'intermédiaire Cloudflare. La clé n'est PAS ici : elle est donnée
-  // une seule fois à l'iPad dans l'adresse (…/maison/#cle=XXXX) et reste sur l'appareil.
-  agenda: "https://agenda-maison.pages.dev/",
+  // Agenda : fichier chiffré mis à jour par GitHub (outils/agenda.mjs). La clé n'est PAS ici :
+  // elle est donnée à l'iPad dans l'adresse (…/maison/?cle=XXXX) et reste sur l'appareil.
+  agenda: "https://raw.githubusercontent.com/lucasboissiere/maison/main/agenda.json",
   nuitDebut: 23,                   // mode nuit de 23 h…
   nuitFin: 6                       // …à 6 h
 };
@@ -462,7 +462,7 @@ var REGLAGES = {
 
   /* ── Agenda ── */
   var cleAgenda = (function () {
-    var m = /cle=([A-Za-z0-9_-]+)/.exec(location.hash || "");
+    var m = /[?&#]cle=([A-Za-z0-9_-]+)/.exec((location.search || "") + (location.hash || ""));
     try {
       if (m) localStorage.setItem("cleAgenda", m[1]);
       return m ? m[1] : (localStorage.getItem("cleAgenda") || "");
@@ -473,17 +473,41 @@ var REGLAGES = {
   function majAgenda() {
     if (!R.agenda || !cleAgenda) return;
     var x = new XMLHttpRequest();
-    x.open("GET", R.agenda + "?cle=" + encodeURIComponent(cleAgenda) + "&t=" + Date.now());
+    x.open("GET", R.agenda + "?t=" + Math.floor(Date.now() / 60000));
     x.timeout = 20000;
     x.onload = function () {
+      var obj;
       try {
         if (x.status !== 200) throw new Error();
-        evAgenda = JSON.parse(x.responseText).ev || [];
+        obj = JSON.parse(x.responseText);
+      } catch (e) { return erreur("agenda indisponible"); }
+      dechiffrer(obj, cleAgenda, function (clair) {
+        evAgenda = clair.ev || [];
         dessinerAgenda();
-      } catch (e) { erreur("agenda indisponible"); }
+      }, function () { erreur("agenda : clé incorrecte"); });
     };
     x.onerror = x.ontimeout = function () { erreur("agenda indisponible"); };
     x.send();
+  }
+
+  // AES-256-GCM, clé = SHA-256 de la clé secrète (voir outils/agenda.mjs)
+  function octets(b64) {
+    var t = atob(b64), u = new Uint8Array(t.length);
+    for (var i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
+    return u;
+  }
+  function dechiffrer(obj, cle, ok, ko) {
+    var s = window.crypto && (window.crypto.subtle || window.crypto.webkitSubtle);
+    if (!s || !window.TextEncoder) return ko();
+    try {
+      s.digest("SHA-256", new TextEncoder().encode(cle)).then(function (h) {
+        return s.importKey("raw", h, { name: "AES-GCM" }, false, ["decrypt"]);
+      }).then(function (k) {
+        return s.decrypt({ name: "AES-GCM", iv: octets(obj.i) }, k, octets(obj.d));
+      }).then(function (buf) {
+        ok(JSON.parse(new TextDecoder().decode(buf)));
+      }, function () { ko(); });
+    } catch (e) { ko(); }
   }
 
   function dessinerAgenda() {
