@@ -470,16 +470,8 @@ var REGLAGES = {
   })();
   var evAgenda = null;
 
-  // Message dans la carte Agenda (visible seulement sur l'appareil qui a la clé)
-  function messageAgenda(t) {
-    if (evAgenda) return erreur(t);   // on garde les derniers rendez-vous affichés
-    $("agenda").innerHTML = '<div class="ag-ligne ag-vide"><span class="ag-titre">' + echapper(t) + '</span></div>';
-    $("agenda").className = "carte agenda actif";
-  }
-
   function majAgenda() {
     if (!R.agenda || !cleAgenda) return;
-    if (!evAgenda) messageAgenda("Agenda : chargement…");
     var x = new XMLHttpRequest();
     x.open("GET", R.agenda + "?t=" + Math.floor(Date.now() / 60000));
     x.timeout = 20000;
@@ -488,14 +480,13 @@ var REGLAGES = {
       try {
         if (x.status !== 200) throw new Error();
         obj = JSON.parse(x.responseText);
-      } catch (e) { return messageAgenda("Agenda : fichier illisible (" + x.status + ")"); }
+      } catch (e) { return erreur("agenda indisponible"); }
       dechiffrer(obj, cleAgenda, function (clair) {
         evAgenda = clair.ev || [];
         dessinerAgenda();
-      }, function (raison) { messageAgenda("Agenda : " + raison); });
+      }, function () { erreur("agenda : clé incorrecte"); });
     };
-    x.onerror = function () { messageAgenda("Agenda : pas de connexion au fichier"); };
-    x.ontimeout = function () { messageAgenda("Agenda : délai dépassé"); };
+    x.onerror = x.ontimeout = function () { erreur("agenda indisponible"); };
     x.send();
   }
 
@@ -509,18 +500,34 @@ var REGLAGES = {
     var s = window.crypto && (window.crypto.subtle || window.crypto.webkitSubtle);
     if (!s) return ko("déchiffrement non disponible (crypto)");
     if (!window.TextEncoder || !window.TextDecoder) return ko("déchiffrement non disponible (texte)");
-    var etape = "empreinte";
+    var etape = "empreinte", brut = null, iv = octets(obj.i), donnees = octets(obj.d);
+    function lire(buf) { return JSON.parse(new TextDecoder().decode(buf)); }
+    function cleLue() {
+      return "clé incorrecte, l'iPad a lu « " + cle + " »";
+    }
+    // Méthode de secours (vieux Safari) : AES-GCM = AES-CTR à partir du compteur IV‖00000002,
+    // on déchiffre donc avec AES-CTR en ignorant les 16 octets d'étiquette à la fin.
+    function secours() {
+      var compteur = new Uint8Array(16);
+      compteur.set(iv, 0); compteur[15] = 2;
+      return s.importKey("raw", brut, { name: "AES-CTR" }, false, ["decrypt"]).then(function (k) {
+        return s.decrypt({ name: "AES-CTR", counter: compteur, length: 32 }, k, donnees.subarray(0, donnees.length - 16));
+      }).then(lire);
+    }
     try {
       s.digest("SHA-256", new TextEncoder().encode(cle)).then(function (h) {
-        etape = "clé";
+        brut = h; etape = "clé";
         return s.importKey("raw", h, { name: "AES-GCM" }, false, ["decrypt"]);
       }).then(function (k) {
         etape = "déchiffrement";
-        return s.decrypt({ name: "AES-GCM", iv: octets(obj.i) }, k, octets(obj.d));
-      }).then(function (buf) {
-        etape = "lecture";
-        ok(JSON.parse(new TextDecoder().decode(buf)));
-      }).then(null, function (e) { ko("erreur à l'étape " + etape + (e && e.name ? " (" + e.name + ")" : "")); });
+        return s.decrypt({ name: "AES-GCM", iv: iv }, k, donnees).then(lire);
+      }).then(null, function (e) {
+        if (!brut) throw e;
+        etape = "secours";
+        return secours();
+      }).then(ok, function (e) {
+        ko(etape === "secours" ? cleLue() : "erreur à l'étape " + etape + (e && e.name ? " (" + e.name + ")" : ""));
+      });
     } catch (e) { ko("erreur " + (e && e.message ? e.message : "")); }
   }
 
