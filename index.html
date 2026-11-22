@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Maison">
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex, nofollow">
+<title>Maison</title>
+<style>
+  /* Version autonome : aucune dépendance au Mac.
+     Écrit pour Safari 12 (iPad mini 2) : pas de flex-gap, pas d'aspect-ratio, pas de ?. */
+  :root {
+    --fond: #000;
+    --carte: #141414;
+    --trait: #262626;
+    --texte: #fff;
+    --doux: #8a8a8e;
+    --tres-doux: #4a4a4d;
+    --rayon: 26px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--fond); color: var(--texte);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+
+  .ecran { height: 100%; display: -webkit-flex; display: flex; padding: 32px 32px 32px 44px; }
+  .colonne { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; min-width: 0; }
+  .gauche { -webkit-flex: 1.15; flex: 1.15; margin-right: 22px; }
+  .droite { -webkit-flex: 1; flex: 1; }
+
+  /* ── Heure ── */
+  .salut { font-size: 22px; font-weight: 500; color: var(--doux); margin-top: 10px; letter-spacing: .2px; }
+  .heure {
+    font-size: 188px; font-weight: 200; line-height: .95; letter-spacing: -6px;
+    margin: 8px 0 0 -8px; font-feature-settings: "tnum";
+  }
+  .sep { position: relative; top: -.075em; margin: 0 .01em; }
+  .date { font-size: 30px; font-weight: 400; margin-top: 14px; letter-spacing: -.3px; }
+
+  /* ── Cartes façon Maison ── */
+  .carte { background: var(--carte); border-radius: var(--rayon); padding: 22px 24px; }
+  .titre-carte {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.4px;
+    color: var(--doux); margin-bottom: 14px; display: -webkit-flex; display: flex;
+    -webkit-justify-content: space-between; justify-content: space-between;
+  }
+
+  /* ── Météo actuelle ── */
+  .meteo { margin-top: auto; }
+  .meteo-haut { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+  .meteo-icone svg { width: 76px; height: 76px; stroke-width: 1.2; margin-right: 18px; display: block; }
+  .meteo-temp { font-size: 76px; font-weight: 200; letter-spacing: -3px; line-height: 1; }
+  .meteo-infos { margin-left: auto; text-align: right; }
+  .meteo-cond { font-size: 20px; font-weight: 500; }
+  .meteo-detail { font-size: 15px; color: var(--doux); margin-top: 5px; line-height: 1.4; }
+  .heures {
+    display: -webkit-flex; display: flex; margin-top: 20px; padding-top: 16px;
+    border-top: 1px solid var(--trait);
+  }
+  .heures > div { -webkit-flex: 1; flex: 1; text-align: center; }
+  .heures .h { font-size: 14px; color: var(--doux); }
+  .heures svg { width: 28px; height: 28px; margin: 8px 0 6px; }
+  .heures .t { font-size: 18px; font-weight: 500; }
+
+  /* ── Tuiles (comme les accessoires de l'app Maison) ── */
+  .tuiles { display: grid; grid-template-columns: 1fr 1fr; grid-gap: 14px; gap: 14px; }
+  .tuile {
+    background: var(--carte); border-radius: 22px; padding: 16px 18px; height: 124px;
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+    transition: background .4s, color .4s; min-width: 0;
+  }
+  .tuile svg { width: 28px; height: 28px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+  .tuile .val { font-size: 26px; font-weight: 400; letter-spacing: -.4px; margin-top: auto;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tuile .val small { font-size: 16px; color: var(--doux); font-weight: 400; margin-left: 3px; letter-spacing: 0; }
+  .tuile .lib { font-size: 14px; color: var(--doux); font-weight: 500; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tuile.alerte { background: var(--texte); color: #000; }
+  .tuile.alerte .lib, .tuile.alerte .val small { color: #555; }
+
+  /* ── Prévisions de la semaine ── */
+  .semaine { -webkit-flex: 1; flex: 1; min-height: 0; margin-top: 14px; overflow: hidden;
+    display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+  .jours { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex;
+    -webkit-flex-direction: column; flex-direction: column; -webkit-justify-content: space-between; justify-content: space-between; }
+  .jour { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+    padding: 4px 0; border-top: 1px solid var(--trait); -webkit-flex: 1; flex: 1; }
+  .jour:first-child { border-top: 0; }
+  .jour .nom { width: 96px; font-size: 18px; font-weight: 500; }
+  .jour svg { width: 28px; height: 28px; margin-right: 6px; }
+  .jour .pl { width: 46px; font-size: 13px; color: var(--doux); }
+  .jour .mn { width: 36px; text-align: right; font-size: 17px; color: var(--doux); }
+  .jour .mx { width: 36px; text-align: right; font-size: 17px; }
+  .barre { -webkit-flex: 1; flex: 1; height: 5px; border-radius: 3px; background: #262626; margin: 0 12px; position: relative; }
+  .barre span { position: absolute; top: 0; bottom: 0; border-radius: 3px;
+    background: -webkit-linear-gradient(left, #6e6e73, #fff); background: linear-gradient(to right, #6e6e73, #fff); }
+
+  svg.ic { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; display: inline-block; }
+
+  .etat { position: fixed; right: 18px; bottom: 10px; font-size: 11px; color: var(--tres-doux); }
+
+  /* ── Mode nuit ── */
+  .nuit {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; z-index: 10;
+    display: none; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  }
+  body.mode-nuit .nuit { display: -webkit-flex; display: flex; }
+  .nuit-heure { font-size: 230px; font-weight: 100; letter-spacing: -8px; color: #5a5a5e; font-feature-settings: "tnum"; line-height: 1; }
+  .nuit-info { font-size: 20px; color: #444447; margin-top: 18px; min-height: 24px; }
+
+  @media (orientation: portrait) {
+    .ecran { -webkit-flex-direction: column; flex-direction: column; padding: 40px 32px 28px; }
+    .gauche { -webkit-flex: none; flex: none; margin-right: 0; margin-bottom: 18px; }
+    .droite { -webkit-flex: 1; flex: 1; min-height: 0; }
+    .heure { font-size: 170px; }
+    .meteo { margin-top: 26px; }
+    .tuiles { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .nuit-heure { font-size: 180px; }
+  }
+  @media (max-width: 700px) {
+    html, body { overflow: auto; }
+    .ecran { height: auto; padding: 20px 16px; }
+    .heure { font-size: 110px; letter-spacing: -3px; }
+    .date { font-size: 22px; }
+    .meteo-temp { font-size: 56px; }
+    .tuiles { grid-template-columns: 1fr 1fr; }
+    .jour { padding: 10px 0; }
+    .jour .nom { width: 60px; }
+    .nuit-heure { font-size: 110px; letter-spacing: -3px; }
+  }
+</style>
+</head>
+<body>
+<div class="ecran">
+  <section class="colonne gauche">
+    <div class="salut" id="salut">&nbsp;</div>
+    <div class="heure" id="heure">--<span class="sep">:</span>--</div>
+    <div class="date" id="date">&nbsp;</div>
+
+    <div class="carte meteo">
+      <div class="titre-carte"><span id="ville">Météo</span><span id="maj"></span></div>
+      <div class="meteo-haut">
+        <div class="meteo-icone" id="m-icone"></div>
+        <div class="meteo-temp" id="m-temp">--°</div>
+        <div class="meteo-infos">
+          <div class="meteo-cond" id="m-cond">&nbsp;</div>
+          <div class="meteo-detail" id="m-detail">&nbsp;</div>
+        </div>
+      </div>
+      <div class="heures" id="m-heures"></div>
+    </div>
+  </section>
+
+  <section class="colonne droite">
+    <div class="tuiles">
+      <div class="tuile" id="t-pluie"></div>
+      <div class="tuile" id="t-poubelle"></div>
+      <div class="tuile" id="t-vent"></div>
+      <div class="tuile" id="t-soleil"></div>
+    </div>
+    <div class="carte semaine">
+      <div class="titre-carte"><span>Cette semaine</span></div>
+      <div class="jours" id="jours"></div>
+    </div>
+  </section>
+</div>
+
+<div class="nuit" id="nuit">
+  <div class="nuit-heure" id="nuit-heure"></div>
+  <div class="nuit-info" id="nuit-info"></div>
+</div>
+<div class="etat" id="etat"></div>
+
+<script>
+/* ═════════════════════════ RÉGLAGES ═════════════════════════ */
+var REGLAGES = {
+  ville: "Vaire-Arcier",
+  latitude: 47.28,
+  longitude: 6.15,
+  nom: "Lucas et Elodie",          // laisse "" pour ne pas afficher de prénoms
+  // Poubelles : jour (lundi…dimanche), toutes_les (1 = chaque semaine, 2 = une sur deux),
+  // depuis = date d'un ramassage connu (AAAA-MM-JJ), utile pour « une semaine sur deux ».
+  poubelles: [
+    { nom: "Poubelle noire", jour: "mardi", toutes_les: 2, depuis: "2026-11-24" },
+    { nom: "Poubelle jaune", jour: "mardi", toutes_les: 2, depuis: "2026-12-01" }
+  ],
+  nuitDebut: 23,                   // mode nuit de 23 h…
+  nuitFin: 6                       // …à 6 h
+};
+/* ════════════════════════════════════════════════════════════ */
+
+(function () {
+  "use strict";
+  var R = REGLAGES;
+  var JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  var JOURS_C = ["Dim.", "Lun.", "Mar.", "Mer.", "Jeu.", "Ven.", "Sam."];
+  var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+              "août", "septembre", "octobre", "novembre", "décembre"];
+  var REVEIL_SECONDES = 30;
+  var meteoData = null, reveilJusqua = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function deux(n) { return (n < 10 ? "0" : "") + n; }
+  function hm(d) { return deux(d.getHours()) + ":" + deux(d.getMinutes()); }
+  function maj1(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function echapper(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  // "2026-11-20T18:15" ou "2026-11-20" → Date locale (Safari 12 lit mal ces formats)
+  function lireDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(s);
+    return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
+  }
+  function iso(d) { return d.getFullYear() + "-" + deux(d.getMonth() + 1) + "-" + deux(d.getDate()); }
+  function erreur(m) { $("etat").textContent = "⚠︎ " + m; }
+
+  /* ── Icônes ── */
+  var NUAGE_HAUT = '<path d="M9.5 20h14a5.5 5.5 0 0 0 .6-11A8 8 0 0 0 8.8 10.6 4.8 4.8 0 0 0 9.5 20z"/>';
+  var P = {
+    soleil: '<circle cx="16" cy="16" r="5.5"/><path d="M16 3v3M16 26v3M3 16h3M26 16h3M6.8 6.8l2.1 2.1M23.1 23.1l2.1 2.1M6.8 25.2l2.1-2.1M23.1 8.9l2.1-2.1"/>',
+    lune: '<path d="M24 19.5A9.5 9.5 0 0 1 12.5 8a9.5 9.5 0 1 0 11.5 11.5z"/>',
+    nuage: '<path d="M9.5 25h14a5.5 5.5 0 0 0 .6-11A8 8 0 0 0 8.8 15.6 4.8 4.8 0 0 0 9.5 25z"/>',
+    eclaircie: '<path d="M11 6.5v1.6M4.5 13h1.6M6.4 8.4l1.1 1.1M15.6 8.4l-1.1 1.1"/><path d="M7.6 15.4A4.5 4.5 0 0 1 15 10"/><path d="M11 27h12.5a5 5 0 0 0 .5-10A7 7 0 0 0 10.6 18.4 4.3 4.3 0 0 0 11 27z"/>',
+    eclaircieNuit: '<path d="M15.5 11.5A5.5 5.5 0 0 1 9 5a5.5 5.5 0 1 0 6.5 6.5z"/><path d="M11 27h12.5a5 5 0 0 0 .5-10A7 7 0 0 0 10.6 18.4 4.3 4.3 0 0 0 11 27z"/>',
+    pluie: NUAGE_HAUT + '<path d="M11 24l-1.5 4M16.5 24L15 28M22 24l-1.5 4"/>',
+    neige: NUAGE_HAUT + '<path d="M11 24.5v.01M16 27v.01M21 24.5v.01M13.5 29v.01M18.5 29v.01" stroke-width="2.6"/>',
+    orage: NUAGE_HAUT + '<path d="M17 21l-3 4.5h4L15 30"/>',
+    brouillard: '<path d="M5 12h22M8 17h19M5 22h20M9 27h14"/>',
+    vent: '<path d="M4 12h15a3.5 3.5 0 1 0-3.5-3.5M4 17h20a3.5 3.5 0 1 1-3.5 3.5M4 22h9"/>',
+    parapluie: '<path d="M4 16a12 12 0 0 1 24 0z"/><path d="M16 16v9a2.5 2.5 0 0 1-5 0"/>',
+    poubelle: '<path d="M5 9h22M12 9V6h8v3M8 9l1.5 18h13L24 9M13.5 14v8M18.5 14v8"/>',
+    lever: '<path d="M8 22a8 8 0 0 1 16 0M4 26h24M16 6v6M12.5 9.5L16 6l3.5 3.5"/>'
+  };
+  function meteoCode(c, jour) {
+    var t;
+    if (c === 0) t = [jour ? "Ensoleillé" : "Dégagé", "soleil", "lune"];
+    else if (c <= 2) t = [c === 1 ? "Plutôt dégagé" : "Éclaircies", "eclaircie", "eclaircieNuit"];
+    else if (c === 3) t = ["Couvert", "nuage", "nuage"];
+    else if (c <= 48) t = ["Brouillard", "brouillard", "brouillard"];
+    else if (c <= 57) t = ["Bruine", "pluie", "pluie"];
+    else if (c <= 67) t = ["Pluie", "pluie", "pluie"];
+    else if (c <= 77) t = ["Neige", "neige", "neige"];
+    else if (c <= 82) t = ["Averses", "pluie", "pluie"];
+    else if (c <= 86) t = ["Averses de neige", "neige", "neige"];
+    else t = ["Orage", "orage", "orage"];
+    return { texte: t[0], icone: jour === 0 ? t[2] : t[1] };
+  }
+  function svg(n) { return '<svg class="ic" viewBox="0 0 32 32">' + P[n] + "</svg>"; }
+  function boussole(deg) {
+    if (deg === null || deg === undefined) return "";
+    return ["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Math.round(deg / 45) % 8];
+  }
+  function tuile(id, icone, val, lib, alerte) {
+    var el = $(id);
+    el.className = "tuile" + (alerte ? " alerte" : "");
+    el.innerHTML = svg(icone) + '<div class="val">' + val + '</div><div class="lib">' + lib + "</div>";
+  }
+
+  /* ── Horloge + mode nuit ── */
+  function estNuit(h) { return h >= R.nuitDebut || h < R.nuitFin; }
+  function horloge() {
+    var d = new Date(), h = d.getHours();
+    var heure = deux(h) + '<span class="sep">:</span>' + deux(d.getMinutes());
+    $("heure").innerHTML = heure;
+    $("nuit-heure").innerHTML = heure;
+    $("date").textContent = maj1(JOURS[d.getDay()] + " " + d.getDate() + " " + MOIS[d.getMonth()]);
+    var s = h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir";
+    $("salut").textContent = s + (R.nom ? ", " + R.nom : "");
+    document.body.className = estNuit(h) && Date.now() > reveilJusqua ? "mode-nuit" : "";
+    if (d.getSeconds() === 0) { dessinerPluie(); dessinerPoubelles(); }
+    setTimeout(horloge, 1000 - d.getMilliseconds() + 5);
+  }
+  function reveil() {
+    if (estNuit(new Date().getHours())) {
+      reveilJusqua = Date.now() + REVEIL_SECONDES * 1000;
+      document.body.className = "";
+    }
+  }
+  document.addEventListener("touchstart", reveil, false);
+  document.addEventListener("mousedown", reveil, false);
+
+  /* ── Météo (directement depuis Open-Meteo, gratuit, sans clé) ── */
+  function urlMeteo() {
+    return "https://api.open-meteo.com/v1/forecast?latitude=" + R.latitude + "&longitude=" + R.longitude +
+      "&timezone=auto" +
+      "&current=temperature_2m,apparent_temperature,weather_code,is_day,relative_humidity_2m,wind_speed_10m,wind_direction_10m" +
+      "&hourly=temperature_2m,weather_code,is_day" +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max" +
+      "&minutely_15=precipitation&forecast_minutely_15=12&forecast_days=7";
+  }
+  function majMeteo() {
+    var x = new XMLHttpRequest();
+    x.open("GET", urlMeteo(), true);
+    x.timeout = 30000;
+    x.onload = function () {
+      if (x.status !== 200) { erreur("météo indisponible (" + x.status + ")"); return; }
+      try { dessinerMeteo(JSON.parse(x.responseText)); $("etat").textContent = ""; }
+      catch (e) { erreur("météo : " + e.message); }
+    };
+    x.onerror = x.ontimeout = function () { erreur("pas de connexion internet"); };
+    x.send();
+  }
+
+  function dessinerMeteo(d) {
+    var c = d.current, h = d.hourly, dd = d.daily;
+    meteoData = { quarts: [] };
+    var mq = d.minutely_15 || {};
+    for (var q = 0; mq.time && q < mq.time.length; q++) meteoData.quarts.push([mq.time[q], mq.precipitation[q]]);
+
+    var cc = meteoCode(c.weather_code, c.is_day);
+    $("ville").textContent = R.ville;
+    $("maj").textContent = "Mis à jour " + hm(new Date());
+    $("m-icone").innerHTML = svg(cc.icone);
+    $("m-temp").textContent = Math.round(c.temperature_2m) + "°";
+    $("m-cond").textContent = cc.texte;
+    $("m-detail").innerHTML = "Max " + Math.round(dd.temperature_2m_max[0]) + "°  ·  Min " +
+      Math.round(dd.temperature_2m_min[0]) + "°<br>Ressenti " + Math.round(c.apparent_temperature) +
+      "°  ·  Humidité " + c.relative_humidity_2m + " %";
+
+    // 6 prochaines heures
+    var cle = c.time.slice(0, 13), i0 = 0;
+    for (var i = 0; i < h.time.length; i++) { if (h.time[i].slice(0, 13) >= cle) { i0 = i; break; } }
+    var html = "";
+    for (var k = i0 + 1; k < Math.min(i0 + 7, h.time.length); k++) {
+      html += '<div><div class="h">' + h.time[k].slice(11, 13) + " h</div>" +
+        svg(meteoCode(h.weather_code[k], h.is_day[k]).icone) +
+        '<div class="t">' + Math.round(h.temperature_2m[k]) + "°</div></div>";
+    }
+    $("m-heures").innerHTML = html;
+
+    var vent = Math.round(c.wind_speed_10m);
+    tuile("t-vent", "vent", vent + "<small>km/h</small>", "Vent " + boussole(c.wind_direction_10m), vent >= 50);
+    tuile("t-soleil", "lever", dd.sunrise[0].slice(11, 16) + "<small>→ " + dd.sunset[0].slice(11, 16) + "</small>",
+      "Lever et coucher du soleil", false);
+
+    // Semaine, avec barres de températures façon app Météo
+    var bas = 99, haut = -99, j;
+    for (j = 0; j < dd.time.length; j++) {
+      bas = Math.min(bas, dd.temperature_2m_min[j]); haut = Math.max(haut, dd.temperature_2m_max[j]);
+    }
+    var ecart = Math.max(1, haut - bas), sem = "";
+    for (j = 0; j < dd.time.length; j++) {
+      var mn = dd.temperature_2m_min[j], mx = dd.temperature_2m_max[j];
+      var nomJ = j === 0 ? "Auj." : JOURS_C[lireDate(dd.time[j]).getDay()];
+      var pl = dd.precipitation_probability_max[j];
+      sem += '<div class="jour"><div class="nom">' + nomJ + "</div>" + svg(meteoCode(dd.weather_code[j], 1).icone) +
+        '<div class="pl">' + (pl >= 30 ? pl + " %" : "") + "</div>" +
+        '<div class="mn">' + Math.round(mn) + '°</div><div class="barre"><span style="left:' +
+        ((mn - bas) / ecart * 100).toFixed(1) + "%;right:" + ((haut - mx) / ecart * 100).toFixed(1) + '%"></span></div>' +
+        '<div class="mx">' + Math.round(mx) + "°</div></div>";
+    }
+    $("jours").innerHTML = sem;
+    dessinerPluie();
+  }
+
+  /* ── Pluie dans l'heure ── */
+  function dessinerPluie() {
+    if (!meteoData) return;
+    var q = meteoData.quarts, maintenant = new Date(), SEUIL = 0.1, futurs = [], k;
+    for (var i = 0; i < q.length; i++) {
+      var t = lireDate(q[i][0]);
+      if (t.getTime() + 15 * 60000 > maintenant.getTime()) futurs.push({ t: t, mm: q[i][1] || 0 });
+    }
+    if (!futurs.length) { tuile("t-pluie", "parapluie", "–", "Pluie", false); return; }
+    if (futurs[0].mm >= SEUIL) {
+      for (k = 1; k < futurs.length && futurs[k].mm >= SEUIL; k++) {}
+      tuile("t-pluie", "parapluie", "Il pleut", k < futurs.length ? "Fin vers " + hm(futurs[k].t) : "Pour un moment", true);
+      return;
+    }
+    for (k = 1; k < futurs.length && futurs[k].mm < SEUIL; k++) {}
+    if (k < futurs.length) {
+      var min = Math.max(5, Math.round((futurs[k].t - maintenant) / 60000 / 5) * 5);
+      tuile("t-pluie", "parapluie", min < 60 ? "Dans " + min + "<small>min</small>" : "Vers " + hm(futurs[k].t),
+        "Pluie prévue", min <= 60);
+    } else {
+      tuile("t-pluie", "parapluie", "Pas de pluie", "Dans les 2 prochaines heures", false);
+    }
+  }
+
+  /* ── Poubelles (calculées sur l'iPad) ── */
+  var JOURS_IDX = { dimanche: 0, lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6 };
+  function prochainesPoubelles() {
+    var auj = new Date(); auj.setHours(12, 0, 0, 0);
+    var res = [];
+    for (var i = 0; i < R.poubelles.length; i++) {
+      var p = R.poubelles[i], jd = JOURS_IDX[String(p.jour).toLowerCase()];
+      if (jd === undefined) continue;
+      var d = new Date(auj.getTime() + ((jd - auj.getDay() + 7) % 7) * 864e5);
+      var pas = p.toutes_les || 1;
+      if (pas > 1 && p.depuis) {
+        var ref = lireDate(p.depuis); ref.setHours(12, 0, 0, 0);
+        for (var n = 0; n < pas; n++) {
+          var sem = Math.round((d - ref) / (7 * 864e5));
+          if (((sem % pas) + pas) % pas === 0) break;
+          d = new Date(d.getTime() + 7 * 864e5);
+        }
+      }
+      res.push({ nom: p.nom, date: iso(d) });
+    }
+    res.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    return res;
+  }
+  function dessinerPoubelles() {
+    var liste = prochainesPoubelles(), info = "";
+    if (!liste.length) { tuile("t-poubelle", "poubelle", "–", "Poubelles", false); return; }
+    var d = new Date(), h = d.getHours(), auj = iso(d), dem = iso(new Date(d.getTime() + 864e5));
+    function noms(date) {
+      return liste.filter(function (p) { return p.date === date; }).map(function (p) { return p.nom; }).join(" + ");
+    }
+    if (h < 12 && noms(auj)) {
+      info = "Ramassage ce matin : " + noms(auj);
+      tuile("t-poubelle", "poubelle", "Ce matin", echapper(noms(auj)), true);
+    } else if (h >= 17 && noms(dem)) {
+      info = "Sortir ce soir : " + noms(dem);
+      tuile("t-poubelle", "poubelle", "Sortir ce soir", echapper(noms(dem)), true);
+    } else {
+      var proch = null;
+      for (var i = 0; i < liste.length; i++) {
+        if (liste[i].date > auj || (liste[i].date === auj && h < 12)) { proch = liste[i]; break; }
+      }
+      if (proch) {
+        var quand = proch.date === auj ? "Aujourd'hui" : proch.date === dem ? "Demain" : maj1(JOURS[lireDate(proch.date).getDay()]);
+        tuile("t-poubelle", "poubelle", quand, echapper(noms(proch.date)), false);
+      }
+    }
+    $("nuit-info").textContent = info;
+  }
+
+  /* ── Démarrage ── */
+  horloge();
+  dessinerPoubelles();
+  majMeteo(); setInterval(majMeteo, 10 * 60 * 1000);
+  // Recharge complète chaque nuit à 3 h (récupère aussi les mises à jour de la page)
+  setInterval(function () { var d = new Date(); if (d.getHours() === 3 && d.getMinutes() === 0) location.reload(); }, 60000);
+})();
+</script>
+</body>
+</html>
