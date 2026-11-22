@@ -14,10 +14,10 @@
      Écrit pour Safari 12 (iPad mini 2) : pas de flex-gap, pas d'aspect-ratio, pas de ?. */
   :root {
     --fond: #000;
-    --carte: #141414;
+    --carte: rgba(18,18,20,.55);
     --trait: #262626;
     --texte: #fff;
-    --doux: #8a8a8e;
+    --doux: #b4b4b9;
     --tres-doux: #4a4a4d;
     --rayon: 26px;
   }
@@ -28,6 +28,15 @@
     -webkit-font-smoothing: antialiased; overflow: hidden;
     -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   }
+  /* Photo de fond (fond.jpg, à côté de cette page), assombrie pour garder le texte lisible */
+  body {
+    background-color: #000;
+    background-image: -webkit-linear-gradient(top, rgba(0,0,0,.62), rgba(0,0,0,.38) 45%, rgba(0,0,0,.62)), url(fond.jpg);
+    background-image: linear-gradient(to bottom, rgba(0,0,0,.62), rgba(0,0,0,.38) 45%, rgba(0,0,0,.62)), url(fond.jpg);
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+  }
+  .carte, .tuile { -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .salut, .heure, .date { text-shadow: 0 1px 12px rgba(0,0,0,.45); }
 
   .ecran { height: 100%; display: -webkit-flex; display: flex; padding: 32px 32px 32px 44px; }
   .colonne { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; min-width: 0; }
@@ -97,7 +106,7 @@
   .jour .pl { width: 46px; font-size: 13px; color: var(--doux); }
   .jour .mn { width: 36px; text-align: right; font-size: 17px; color: var(--doux); }
   .jour .mx { width: 36px; text-align: right; font-size: 17px; }
-  .barre { -webkit-flex: 1; flex: 1; height: 5px; border-radius: 3px; background: #262626; margin: 0 12px; position: relative; }
+  .barre { -webkit-flex: 1; flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.18); margin: 0 12px; position: relative; }
   .barre span { position: absolute; top: 0; bottom: 0; border-radius: 3px;
     background: -webkit-linear-gradient(left, #6e6e73, #fff); background: linear-gradient(to right, #6e6e73, #fff); }
 
